@@ -13,3 +13,162 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+enum UserRole {
+  MEDICHIVE_ADMIN
+  INSTITUTE_ADMIN
+  LAB_ADMIN
+  DOCTOR
+  PATIENT
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+model User {
+  id        Int       @id @default(autoincrement())
+  username  String
+  password  String
+  name      String
+  email     String    @unique
+  address   String?
+  nic       String?   @unique
+  contactNo String?
+  gender    Gender
+  dob       DateTime?
+  roles     UserRole
+
+  doctor  Doctor[]
+  // instituteAdmin InstituteAdmin?
+  patient Patient[]
+  // medichiveAdmin MedichiveAdmin?
+  // labAdmin       LabAdmin?
+}
+
+////////////////////////////////////////////////////////////////////////
+
+model Doctor {
+  id            String @id @default(uuid())
+  experience    Float
+  licenseNumber String @unique
+  userId        Int    @unique
+  user          User   @relation(fields: [userId], references: [id])
+
+  institutes     InstituteDoctor[]
+  rates_pat      DoctorPatientRate[]
+  specialization DoctorSpecialization[]
+  appointments   Appointment[]
+}
+
+model DoctorSpecialization {
+  id          Int    @id @default(autoincrement())
+  name        String
+  description String
+
+  doctorId Int
+  doctor   Doctor @relation(fields: [doctorId], references: [userId])
+}
+
+////////////////////////////////////////////////////////////////////////
+
+model Patient {
+  id String @id @default(uuid())
+
+  userId Int  @unique
+  user   User @relation(fields: [userId], references: [id])
+
+  rates        InstitutePatientRate[]
+  rates_doc    DoctorPatientRate[]
+  appointments Appointment[]
+}
+
+////////////////////////////////////////////////////////////////////////
+
+model Institute {
+  id                 Int     @id @default(autoincrement())
+  name               String
+  registrationNumber String  @unique
+  contactNumber      String
+  website            String?
+  address            String?
+  description        String?
+  certificate        String?
+
+  doctors      InstituteDoctor[]
+  raters       InstitutePatientRate[]
+  appointments Appointment[]
+}
+
+////////////////////////////////////////////////////////////////////////
+
+model Appointment {
+  id          Int     @id @default(autoincrement())
+  doctorId    Int
+  instituteId Int
+  patientId   Int
+  date        String
+  startTime   String
+  endTime     String
+  symptoms    String?
+  notes       String?
+  amount      Float @default(0.0)
+  status      Int
+  refNo String?
+
+  doctor    Doctor    @relation(fields: [doctorId], references: [userId])
+  institute Institute @relation(fields: [instituteId], references: [id])
+  patient   Patient   @relation(fields: [patientId], references: [userId])
+}
+
+//////////////////////////////// M-2-M Tables ///////////////////////////////
+
+model InstitutePatientRate {
+  raterId     Int
+  instituteId Int
+  rate        Int
+
+  patient   Patient   @relation(fields: [raterId], references: [userId])
+  institute Institute @relation(fields: [instituteId], references: [id])
+
+  @@id([raterId, instituteId])
+  @@unique([raterId, instituteId])
+}
+
+model DoctorPatientRate {
+  raterId  Int
+  doctorId Int
+  rate     Int
+
+  patient Patient @relation(fields: [raterId], references: [userId])
+  doctor  Doctor  @relation(fields: [doctorId], references: [userId])
+
+  @@id([raterId, doctorId])
+  @@unique([raterId, doctorId])
+}
+
+model InstituteDoctor {
+  id          Int @id @default(autoincrement())
+  doctorId    Int
+  instituteId Int
+
+  doctor    Doctor    @relation(fields: [doctorId], references: [userId], onDelete: Cascade)
+  institute Institute @relation(fields: [instituteId], references: [id], onDelete: Cascade)
+
+  slots DoctorAvailability[] // Relation to time slots
+
+  @@unique([doctorId, instituteId]) // Ensure unique doctor-institute pair
+}
+
+model DoctorAvailability {
+  id                Int    @id @default(autoincrement())
+  doctorInstituteId Int
+  date              String // Date of availability
+  startTime         String // Start time in "HH:MM" format
+  endTime           String // End time in "HH:MM" format
+
+  doctorInstitute InstituteDoctor @relation(fields: [doctorInstituteId], references: [id], onDelete: Cascade)
+}
+
